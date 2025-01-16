@@ -1,0 +1,187 @@
+{
+	"info": {
+		"_postman_id": "c297025f-533f-4cf0-afba-5d07f0cd33c5",
+		"name": "Postman Dynamic Workflows",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "45251555",
+		"_collection_link": "https://pete2157.postman.co/workspace/Team-Workspace~972e4916-bda4-46a9-8d54-ce6bf2f517ae/collection/45251555-c297025f-533f-4cf0-afba-5d07f0cd33c5?action=share&source=collection_link&creator=45251555"
+	},
+    "item": [
+        {
+            "name": "Task 1: Fetch Token & Call Protected Resource (Simulated)",
+            "event": [
+                {
+                    "listen": "prerequest",
+                    "script": {
+                        "exec": [
+                            "console.log('Task 1 Pre-request: Attempting to login and fetch token...');",
+                            "const loginRequestBody = { email: 'eve.holt@reqres.in', password: 'cityslicka' };",
+                            "pm.sendRequest({",
+                            "    url: pm.environment.get('baseUrl') + '/login',",
+                            "    method: 'POST',",
+                            "    header: { 'Content-Type': 'application/json' },",
+                            "    body: { mode: 'raw', raw: JSON.stringify(loginRequestBody) }",
+                            "}, function (err, response) {",
+                            "    if (err) {",
+                            "        console.error('Login request failed:', err);",
+                            "        pm.environment.unset('authToken');",
+                            "        return;",
+                            "    }",
+                            "    if (response.code === 200) {",
+                            "        const responseJson = response.json();",
+                            "        if (responseJson.token) {",
+                            "            console.log('Login successful. Token fetched:', responseJson.token);",
+                            "            pm.environment.set('authToken', responseJson.token);",
+                            "            console.log('Setting Authorization header for the main request...');",
+                            "            pm.request.headers.upsert({ key: 'Authorization', value: 'Bearer ' + responseJson.token });",
+                            "        } else {",
+                            "            console.error('Login response did not contain a token.');",
+                            "            pm.environment.unset('authToken');",
+                            "        }",
+                            "    } else {",
+                            "        console.error('Login request failed with status:', response.code, response.status);",
+                            "        console.error('Response body:', response.text());",
+                            "        pm.environment.unset('authToken');",
+                            "    }",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                },
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 200 for main request\", function () { pm.response.to.have.status(200); });",
+                            "const authToken = pm.environment.get('authToken');",
+                            "pm.test(\"Auth token should have been set in environment\", function() { pm.expect(authToken).to.not.be.empty.and.to.be.a('string'); });",
+                            "const responseJson = pm.response.json();",
+                            "pm.test(\"Response contains user data for ID 2\", function() {",
+                            "    pm.expect(responseJson.data).to.be.an('object');",
+                            "    pm.expect(responseJson.data.id).to.eql(2);",
+                            "});",
+                            "console.log('Main request completed. Auth token used (simulated):', authToken);"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "GET",
+                "header": [
+                    { "key": "X-Info", "value": "Main request for Task 1", "type": "text" }
+                ],
+                "url": {
+                    "raw": "{{baseUrl}}/users/2",
+                    "host": [ "{{baseUrl}}" ],
+                    "path": [ "users", "2" ],
+                    "description": "This is the main request. Its Authorization header will be set by the pre-request script."
+                }
+            },
+            "response": []
+        },
+        {
+            "name": "Task 2: Fetch User List, Pick User, Update That User (Simulated)",
+            "event": [
+                {
+                    "listen": "prerequest",
+                    "script": {
+                        "exec": [
+                            "console.log('Task 2 Pre-request: Fetching user list...');",
+                            "pm.sendRequest({",
+                            "    url: pm.environment.get('baseUrl') + '/users?page=1',",
+                            "    method: 'GET'",
+                            "}, function (err, response) {",
+                            "    if (err) {",
+                            "        console.error('Failed to fetch user list:', err);",
+                            "        return;",
+                            "    }",
+                            "    if (response.code === 200) {",
+                            "        const userListResponse = response.json();",
+                            "        if (userListResponse.data && userListResponse.data.length > 0) {",
+                            "            const firstUser = userListResponse.data[0];",
+                            "            const userIdToUpdate = firstUser.id.toString();",
+                            "            pm.environment.set('dynamicUserIdForTask2', userIdToUpdate); // Store for reference/logging",
+                            "            console.log('Fetched user list. Selected user ID for update:', userIdToUpdate, 'Name:', firstUser.first_name);",
+                            "",
+                            "            // Directly update the path segment of the main request's URL object",
+                            "            // pm.request.url is an object representing the current request's URL",
+                            "            // If the URL in UI is {{baseUrl}}/users/:userIdToUpdate",
+                            "            // The 'path' array would be ['users', ':userIdToUpdate'] initially (if placeholder used)",
+                            "            // We are directly setting the second segment.",
+                            "            if (pm.request.url.path.length > 1) {",
+                            "                pm.request.url.path[1] = userIdToUpdate;",
+                            "            } else {",
+                            "                pm.request.url.path.push(userIdToUpdate); // If path was just '/users'",
+                            "            }",
+                            "            // Also, if you used a Postman path variable in the UI (e.g., /users/:idToUpdate),",
+                            "            // you can update its value too, though changing pm.request.url.path directly is more robust here.",
+                            "            // For example, if a path variable 'idToUpdate' exists:",
+                            "            // const pathVar = pm.request.url.variables.find(v => v.key === 'idToUpdate');",
+                            "            // if (pathVar) pathVar.value = userIdToUpdate;",
+                            "",
+                            "            const updatedJob = 'Senior ' + pm.variables.replaceIn('{{$randomJobTitle}}');",
+                            "            const updatedName = firstUser.first_name + ' ' + firstUser.last_name + ' (Script Updated)';",
+                            "            pm.environment.set('updatedNameForTest', updatedName);",
+                            "            pm.environment.set('updatedJobForTest', updatedJob);",
+                            "            const newRequestBody = { name: updatedName, job: updatedJob };",
+                            "            pm.request.body.update(JSON.stringify(newRequestBody));",
+                            "            pm.request.headers.upsert({key: 'Content-Type', value: 'application/json'});",
+                            "            console.log('Main PUT request URL will be sent as:', pm.request.url.toString());",
+                            "            console.log('Main PUT request Body will be sent as:', JSON.stringify(newRequestBody));",
+                            "        } else {",
+                            "            console.error('User list fetch was successful but no data found.');",
+                            "        }",
+                            "    } else {",
+                            "        console.error('Failed to fetch user list. Status:', response.code);",
+                            "    }",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                },
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 200 for main PUT request\", function () { pm.response.to.have.status(200); });",
+                            "const responseJson = pm.response.json();",
+                            "const expectedName = pm.environment.get('updatedNameForTest');",
+                            "const expectedJob = pm.environment.get('updatedJobForTest');",
+                            "pm.test(\"Response name matches dynamically updated name\", function() { pm.expect(responseJson.name).to.eql(expectedName); });",
+                            "pm.test(\"Response job matches dynamically updated job\", function() { pm.expect(responseJson.job).to.eql(expectedJob); });",
+                            "pm.test(\"Response contains updatedAt timestamp\", function() { pm.expect(responseJson.updatedAt).to.exist.and.to.not.be.empty; });",
+                            "console.log('Main PUT request completed for user ID:', pm.environment.get('dynamicUserIdForTask2'));",
+                            "console.log('Asserted Name:', expectedName, 'Job:', expectedJob);"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "PUT",
+                "header": [],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n    \"name\": \"Initial Placeholder Name\",\n    \"job\": \"Initial Placeholder Job\"\n}",
+                    "options": { "raw": { "language": "json" } }
+                },
+                "url": {
+                    "raw": "{{baseUrl}}/users/:userIdToUpdate",
+                    "host": [ "{{baseUrl}}" ],
+                    "path": [ "users", ":userIdToUpdate" ],
+                    "variable": [
+                        {
+                            "key": "userIdToUpdate",
+                            "value": "0",
+                            "description": "This path variable's effective value is set by the pre-request script by modifying pm.request.url.path[1]"
+                        }
+                    ],
+                    "description": "Main request. URL path and body are dynamically set in pre-request script."
+                }
+            },
+            "response": []
+        }
+    ],
+    "variable": []
+}
